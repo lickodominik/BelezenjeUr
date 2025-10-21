@@ -8,10 +8,12 @@ import xlsx from "xlsx";
 
 
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+dotenv.config();
 
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT = 3000;
 
 
 // konfiguracija poti
