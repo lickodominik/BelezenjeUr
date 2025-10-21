@@ -31,6 +31,11 @@ app.use(express.json());
 // omogoči dostop do frontend datotek
 app.use(express.static(path.join(__dirname, "../frontend")));
 
+// 🔹 Preusmeri "/" na registracijo
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "../frontend/index.html"));
+});
+
 // API: registracija novega uporabnika
 app.post("/api/register", async(req, res) => {
   const { username, email, password } = req.body;
