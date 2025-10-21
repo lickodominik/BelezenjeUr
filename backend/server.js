@@ -5,11 +5,12 @@ import path from "path";
 import cors from "cors";
 import bodyParser from "body-parser";
 import xlsx from "xlsx";
+import dotenv from "dotenv";
+dotenv.config();
+
 
 
 import { fileURLToPath } from "url";
-import dotenv from "dotenv";
-dotenv.config();
 
 
 const app = express();
@@ -54,7 +55,7 @@ app.post("/api/register", async(req, res) => {
   res.json({ message: "Uporabnik uspešno registriran!" });
 });
 
-app.post("/api/login", async(req, res) => {
+app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
 
   if (!fs.existsSync(usersFile)) {
@@ -62,17 +63,22 @@ app.post("/api/login", async(req, res) => {
   }
 
   const users = JSON.parse(fs.readFileSync(usersFile, "utf8"));
-  const user = users.find((u) => u.email === email && u.password === password);
+  const user = users.find((u) => u.email === email);
 
   if (!user) {
     return res.status(401).json({ message: "Napačen e-naslov ali geslo" });
   }
 
+  // ✅ preverimo hashirano geslo
   const validPassword = await bcrypt.compare(password, user.password);
-  if (!validPassword)
+
+  if (!validPassword) {
     return res.status(401).json({ message: "Napačen e-naslov ali geslo" });
+  }
+
   res.json({ message: "Prijava uspešna!", username: user.username });
 });
+
 
 // --------------------------
 // 🔹 VRNI SLUŽBE uporabnika

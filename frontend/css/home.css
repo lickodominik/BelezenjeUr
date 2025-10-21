@@ -125,3 +125,29 @@ button[type="submit"]:hover {
 #downloadExcel:hover {
   background-color: #16a34a;
 }
+/* 🔹 Obvestila (enoten stil za vse strani) */
+.message-box {
+  margin-top: 15px;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-weight: 500;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.message-box.show {
+  opacity: 1;
+}
+
+.message-box.error {
+  background-color: rgba(255, 0, 0, 0.1);
+  color: #d62828;
+  border: 1px solid #d62828;
+}
+
+.message-box.success {
+  background-color: rgba(0, 128, 0, 0.1);
+  color: #2a9d8f;
+  border: 1px solid #2a9d8f;
+}

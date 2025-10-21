@@ -1,52 +1,64 @@
 const loginForm = document.getElementById("loginForm");
-const welcomeTitle = document.getElementById("welcomeTitle");
-const registerLinkText = document.getElementById("registerLinkText");
+const messageBox = document.createElement("div");
+messageBox.id = "messageBox";
+loginForm.appendChild(messageBox);
 
-// Če je uporabnik že prijavljen, prikažemo pozdrav
 const savedUser = localStorage.getItem("username");
 if (savedUser) {
-  showWelcome(savedUser);
+  window.location.href = "home.html";
 }
 
-// 🔹 Ob kliku na "Prijava"
+// 🔹 Prikaz sporočila (uspeh / napaka)
+function showMessage(text, type = "error") {
+  messageBox.textContent = text;
+  messageBox.className = `message ${type}`; // npr. message success ali message error
+  messageBox.style.opacity = "1";
+
+  // Po 3 sekundah se sporočilo počasi skrije
+  setTimeout(() => {
+    messageBox.style.opacity = "0";
+  }, 3000);
+}
+
+// 🔹 Ob oddaji prijavnega obrazca
 loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value.trim();
 
-  const response = await fetch("/api/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
+  if (!email || !password) {
+    showMessage("Vnesi e-naslov in geslo!", "error");
+    return;
+  }
 
-  const result = await response.json();
-  alert(result.message);
+  try {
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
 
-  if (response.ok) {
+    const result = await response.json();
+
+    if (!response.ok) {
+      showMessage(result.message || "Napačen e-naslov ali geslo.", "error");
+      return;
+    }
+
+    showMessage("Prijava uspešna! Preusmerjam ...", "success");
+
     localStorage.setItem("username", result.username);
     localStorage.setItem("userEmail", email);
     localStorage.setItem("email", email);
-    showWelcome(result.username);
-    window.location.href = "home.html";
+
+    // Po 1 sekundi preusmeri na home.html
+    setTimeout(() => {
+      window.location.href = "home.html";
+    }, 1000);
+
+  } catch (err) {
+    console.error("Napaka pri prijavi:", err);
+    showMessage("Napaka pri povezavi s strežnikom.", "error");
   }
 });
-
-// 🔹 Funkcija za prikaz pozdrava
-function showWelcome(username) {
-  loginForm.style.display = "none"; // skrijemo formo
-  if (registerLinkText) registerLinkText.style.display = "none"; // skrijemo link “Še nimaš računa?”
-  welcomeTitle.textContent = `Pozdravljen, ${username}!`;
-
-  const logoutBtn = document.createElement("button");
-  logoutBtn.textContent = "Odjava";
-  logoutBtn.style.marginTop = "20px";
-  logoutBtn.addEventListener("click", () => {
-    localStorage.clear();
-    location.reload();
-  });
-
-  document.body.appendChild(logoutBtn);
-}
-

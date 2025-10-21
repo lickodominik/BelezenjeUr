@@ -1,28 +1,90 @@
 const username = localStorage.getItem("username");
 const email = localStorage.getItem("userEmail");
 
+// 🔹 Če uporabnik ni prijavljen, ga preusmerimo
 if (!username || !email) {
   window.location.href = "login.html";
 } else {
   document.getElementById("welcomeMsg").textContent = `Pozdravljen, ${username}!`;
 }
 
+// 🔹 Odjava
 document.getElementById("logoutBtn").addEventListener("click", () => {
-  localStorage.clear();
-  window.location.href = "login.html";
+  showConfirm("Si prepričan, da se želiš odjaviti?", () => {
+    localStorage.clear();
+    window.location.href = "login.html";
+  });
 });
 
 const jobForm = document.getElementById("addJobForm");
 const jobList = document.getElementById("jobList");
 
+// 🔹 Dodamo polje za sporočila
+const messageBox = document.createElement("div");
+messageBox.id = "messageBox";
+messageBox.style.marginTop = "10px";
+messageBox.style.padding = "10px";
+messageBox.style.borderRadius = "8px";
+messageBox.style.display = "none";
+messageBox.style.fontWeight = "bold";
+jobForm.parentElement.insertBefore(messageBox, jobForm);
+
+// 🔹 Funkcija za prikaz sporočil
+function showMessage(text, type = "info") {
+  messageBox.textContent = text;
+  messageBox.style.display = "block";
+  messageBox.style.backgroundColor =
+    type === "success" ? "#d4edda" :
+    type === "error" ? "#f8d7da" :
+    "#cce5ff";
+  messageBox.style.color =
+    type === "success" ? "#155724" :
+    type === "error" ? "#721c24" :
+    "#004085";
+  setTimeout(() => { messageBox.style.display = "none"; }, 3000);
+}
+
+// 🔹 Funkcija za potrditvena okna (namesto confirm)
+function showConfirm(message, onConfirm) {
+  const confirmBox = document.createElement("div");
+  confirmBox.style.position = "fixed";
+  confirmBox.style.top = "50%";
+  confirmBox.style.left = "50%";
+  confirmBox.style.transform = "translate(-50%, -50%)";
+  confirmBox.style.background = "#fff";
+  confirmBox.style.border = "1px solid #ccc";
+  confirmBox.style.padding = "20px";
+  confirmBox.style.borderRadius = "10px";
+  confirmBox.style.boxShadow = "0 4px 8px rgba(0,0,0,0.2)";
+  confirmBox.style.zIndex = "1000";
+  confirmBox.innerHTML = `
+    <p style="margin-bottom: 10px;">${message}</p>
+    <button id="confirmYes">Da</button>
+    <button id="confirmNo" style="margin-left: 10px;">Ne</button>
+  `;
+  document.body.appendChild(confirmBox);
+
+  document.getElementById("confirmYes").addEventListener("click", () => {
+    confirmBox.remove();
+    onConfirm();
+  });
+  document.getElementById("confirmNo").addEventListener("click", () => {
+    confirmBox.remove();
+  });
+}
+
 let jobs = [];
 
 // 🔹 1. Naloži vse službe uporabnika
 async function loadJobs() {
-  const res = await fetch(`/api/jobs/${email}`);
-  const data = await res.json();
-  jobs = data.jobs || [];
-  renderJobs();
+  try {
+    const res = await fetch(`/api/jobs/${email}`);
+    const data = await res.json();
+    jobs = data.jobs || [];
+    renderJobs();
+  } catch {
+    showMessage("Napaka pri nalaganju služb.", "error");
+  }
 }
 
 // 🔹 2. Prikaži službe
@@ -69,86 +131,83 @@ function renderJobs() {
   });
 }
 
-
 // 🔹 3. Pošlji "Začni" ali "Ustavi" na strežnik
 async function handleTime(jobName, action) {
-  const res = await fetch("/api/time", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, jobName, action }),
-  });
+  try {
+    const res = await fetch("/api/time", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, jobName, action }),
+    });
 
-  const data = await res.json();
-  alert(data.message);
-  if (res.ok) {
+    const data = await res.json();
+    if (!res.ok) return showMessage(data.message || "Napaka pri posodobitvi.", "error");
+
+    showMessage(data.message, "success");
     jobs = data.jobs;
     renderJobs();
+  } catch {
+    showMessage("Napaka pri komunikaciji s strežnikom.", "error");
   }
 }
 
-// 🔹 Odstrani službo
+// 🔹 4. Odstrani službo
 async function handleDelete(jobName) {
-  if (!confirm(`Ali res želiš odstraniti službo "${jobName}"?`)) return;
+  showConfirm(`Ali res želiš odstraniti službo "${jobName}"?`, async () => {
+    try {
+      const res = await fetch("/api/jobs", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, name: jobName }),
+      });
 
-  const res = await fetch("/api/jobs", {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, name: jobName }),
+      const data = await res.json();
+      if (!res.ok) return showMessage(data.message || "Napaka pri brisanju.", "error");
+
+      showMessage("Služba odstranjena.", "success");
+      jobs = data.jobs;
+      renderJobs();
+    } catch {
+      showMessage("Napaka pri komunikaciji s strežnikom.", "error");
+    }
   });
-
-  const data = await res.json();
-  alert(data.message);
-
-  if (res.ok) {
-    jobs = data.jobs;
-    renderJobs();
-  }
 }
 
-// 🔹 4. Dodaj novo službo
+// 🔹 5. Dodaj novo službo
 jobForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const name = document.getElementById("jobName").value.trim();
-  if (!name) return alert("Vnesi ime službe!");
+  if (!name) return showMessage("Vnesi ime službe!", "error");
 
-  const response = await fetch("/api/jobs", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, name }),
-  });
+  try {
+    const response = await fetch("/api/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, name }),
+    });
 
-  const result = await response.json();
-  alert(result.message);
+    const result = await response.json();
 
-  if (response.ok) {
+    if (!response.ok) return showMessage(result.message || "Napaka pri dodajanju.", "error");
+
+    showMessage("Služba dodana!", "success");
     jobs = result.jobs;
     renderJobs();
     document.getElementById("jobName").value = "";
+  } catch {
+    showMessage("Napaka pri dodajanju službe.", "error");
   }
 });
 
 // 📥 Prenos Excel datoteke
 document.getElementById("downloadExcel").addEventListener("click", () => {
   const email = localStorage.getItem("email");
-  if (!email) return alert("Napaka: uporabnik ni prijavljen!");
+  if (!email) return showMessage("Napaka: uporabnik ni prijavljen!", "error");
 
-  // ustvari sklic na backend datoteko
   const url = `/api/download/${encodeURIComponent(email)}`;
-
-  // sproži prenos
   window.location.href = url;
 });
 
-// 🚪 Odjava
-document.getElementById("logoutBtn").addEventListener("click", () => {
-  if (confirm("Si prepričan, da se želiš odjaviti?")) {
-    localStorage.removeItem("username");
-    localStorage.removeItem("email");
-    window.location.href = "login.html";
-  }
-});
-
-
-// 🔹 5. Naloži ob začetku
+// 🔹 6. Naloži ob začetku
 loadJobs();
