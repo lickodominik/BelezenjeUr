@@ -1,0 +1,21 @@
+ # 🔹 Node.js odvisnosti
+node_modules/
+
+# 🔹 Konfiguracijske in okoljske datoteke
+.env
+Procfile
+
+# 🔹 Lokalni uporabniški podatki
+backend/users.json
+backend/data/
+*.xlsx
+
+# 🔹 Sistemske datoteke
+.DS_Store
+Thumbs.db
+
+# 🔹 Logi
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
