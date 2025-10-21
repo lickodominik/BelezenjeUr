@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="sl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Beleženje ur – Domov</title>
+    <link rel="stylesheet" href="css/home.css" />
+  </head>
+
+  <body>
+    <header>
+      <h1 id="welcomeMsg">Pozdravljen!</h1>
+      <button id="logoutBtn">Odjava</button>
+    </header>
+
+    <main>
+      <p>Dobrodošel v aplikaciji za beleženje ur.</p>
+
+      <form id="addJobForm">
+        <input type="text" id="jobName" placeholder="Ime službe" required />
+        <button type="submit">Dodaj službo</button>
+      </form>
+
+      <div id="jobList"></div>
+
+      <button id="downloadExcel">📥 Prenesi Excel</button>
+    </main>
+
+    <script src="js/home.js"></script>
+  </body>
+</html>

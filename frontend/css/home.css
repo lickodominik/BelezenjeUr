@@ -1,0 +1,127 @@
+body {
+  font-family: "Segoe UI", sans-serif;
+  background-color: #f9fafb;
+  margin: 0;
+  padding: 0;
+}
+
+header {
+  background-color: #2563eb;
+  color: white;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+#logoutBtn {
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+#logoutBtn:hover {
+  background-color: #dc2626;
+}
+
+main {
+  padding: 2rem;
+  max-width: 700px;
+  margin: 2rem auto;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+form {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+input[type="text"] {
+  padding: 10px;
+  width: 70%;
+  border: 1px solid #ccc;
+  border-radius: 8px 0 0 8px;
+}
+
+button[type="submit"] {
+  padding: 10px 16px;
+  border: none;
+  background-color: #2563eb;
+  color: white;
+  border-radius: 0 8px 8px 0;
+  cursor: pointer;
+}
+
+button[type="submit"]:hover {
+  background-color: #1d4ed8;
+}
+
+#jobList {
+  margin-top: 20px;
+}
+
+.job-item {
+  border: 1px solid #e5e7eb;
+  padding: 10px 15px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.job-item h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.job-item button {
+  margin-left: 5px;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.job-item button:first-of-type {
+  background-color: #16a34a;
+  color: white;
+}
+
+.job-item button:nth-of-type(2) {
+  background-color: #dc2626;
+  color: white;
+}
+
+.job-item button:nth-of-type(3) {
+  background-color: #6b7280;
+  color: white;
+}
+
+#downloadExcel {
+  margin-top: 20px;
+  background-color: #22c55e;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+#downloadExcel:hover {
+  background-color: #16a34a;
+}
