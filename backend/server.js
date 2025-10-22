@@ -95,7 +95,7 @@ app.get("/admin/download-users", (req, res) => {
     }
 
     // 📂 pot do datoteke
-    const filePath = path.join(__dirname, "users.json");
+    const filePath = path.join(__dirname, "data/users.json");
 
     // 🧩 preveri, če obstaja
     if (!fs.existsSync(filePath)) {
