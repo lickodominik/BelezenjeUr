@@ -84,6 +84,18 @@ app.post("/api/login", async (req, res) => {
   res.json({ message: "Prijava uspešna!", username: user.username });
 });
 
+// V server.js (backend) — samo kot admin endpoint, varuj z ADMIN_TOKEN v .env
+app.get("/admin/download-users", (req, res) => {
+  const token = req.headers["x-admin-token"];
+  if (!token || token !== process.env.ADMIN_TOKEN) {
+    return res.status(403).send("Forbidden");
+  }
+  // Pot do users.json
+  const filePath = path.join(__dirname, "users.json");
+  if (!fs.existsSync(filePath)) return res.status(404).send("No users file");
+  res.download(filePath, "users.json");
+});
+
 
 // --------------------------
 // 🔹 VRNI SLUŽBE uporabnika
