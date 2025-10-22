@@ -84,17 +84,37 @@ app.post("/api/login", async (req, res) => {
   res.json({ message: "Prijava uspešna!", username: user.username });
 });
 
-// V server.js (backend) — samo kot admin endpoint, varuj z ADMIN_TOKEN v .env
+// ✅ ADMIN endpoint za prenos users.json — dostop samo z ustreznim tokenom
 app.get("/admin/download-users", (req, res) => {
-  const token = req.headers["x-admin-token"];
-  if (!token || token !== process.env.ADMIN_TOKEN) {
-    return res.status(403).send("Forbidden");
+  try {
+    const token = req.headers["x-admin-token"];
+
+    // 🔒 preveri, če je token poslan in pravilen
+    if (!token || token !== process.env.ADMIN_TOKEN) {
+      return res.status(403).json({ error: "Dostop zavrnjen" });
+    }
+
+    // 📂 pot do datoteke
+    const filePath = path.join(__dirname, "users.json");
+
+    // 🧩 preveri, če obstaja
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "Datoteka ne obstaja" });
+    }
+
+    // 📦 pošlji datoteko za prenos
+    res.download(filePath, "users.json", (err) => {
+      if (err) {
+        console.error("Napaka pri pošiljanju datoteke:", err);
+        res.status(500).json({ error: "Napaka pri pošiljanju datoteke" });
+      }
+    });
+  } catch (err) {
+    console.error("Napaka pri admin prenosu:", err);
+    res.status(500).json({ error: "Notranja napaka strežnika" });
   }
-  // Pot do users.json
-  const filePath = path.join(__dirname, "users.json");
-  if (!fs.existsSync(filePath)) return res.status(404).send("No users file");
-  res.download(filePath, "users.json");
 });
+
 
 
 // --------------------------
