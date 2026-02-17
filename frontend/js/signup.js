@@ -1,7 +1,5 @@
 const signupForm = document.getElementById("signupForm");
-const welcomeTitle = document.getElementById("welcomeTitle");
 
-// 🔹 Ustvari element za prikaz sporočil
 const messageBox = document.createElement("div");
 messageBox.id = "messageBox";
 messageBox.style.marginTop = "10px";
@@ -11,28 +9,29 @@ messageBox.style.display = "none";
 messageBox.style.fontWeight = "bold";
 signupForm.appendChild(messageBox);
 
-// Če je uporabnik že prijavljen, pokaži pozdrav
-const savedUser = localStorage.getItem("username");
-if (savedUser) {
-  showWelcome(savedUser);
-}
-
-// 🔹 Funkcija za prikaz sporočil
 function showMessage(text, type = "info") {
   messageBox.textContent = text;
   messageBox.style.display = "block";
   messageBox.style.backgroundColor =
-    type === "success" ? "#d4edda" :
-    type === "error" ? "#f8d7da" :
-    "#cce5ff";
+    type === "success" ? "#d4edda" : type === "error" ? "#f8d7da" : "#cce5ff";
   messageBox.style.color =
-    type === "success" ? "#155724" :
-    type === "error" ? "#721c24" :
-    "#004085";
-  setTimeout(() => { messageBox.style.display = "none"; }, 3000);
+    type === "success" ? "#155724" : type === "error" ? "#721c24" : "#004085";
+
+  setTimeout(() => {
+    messageBox.style.display = "none";
+  }, 3500);
 }
 
-// 🔹 Ob kliku na "Ustvari račun"
+// Če je že prijavljen (cookie), ga preusmeri
+(async function () {
+  try {
+    const res = await fetch("/api/me", { credentials: "include" });
+    if (res.ok) window.location.href = "home.html";
+  } catch {
+    // ignore
+  }
+})();
+
 signupForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -48,46 +47,30 @@ signupForm.addEventListener("submit", async (e) => {
     const response = await fetch("/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ username, email, password }),
     });
 
-    const result = await response.json();
+    // robustno branje (da ne crkne, če backend vrne HTML)
+    const text = await response.text();
+    let result = {};
+    try {
+      result = text ? JSON.parse(text) : {};
+    } catch {
+      result = { message: text || "Neveljaven odgovor strežnika." };
+    }
 
     if (!response.ok) {
       return showMessage(result.message || "Napaka pri registraciji.", "error");
     }
 
-    showMessage("Registracija uspešna! Preusmerjam...", "success");
+    // samo za UI
+    localStorage.setItem("username", result.username || username);
 
-    // Shrani podatke in preusmeri
-    localStorage.setItem("username", username);
-    localStorage.setItem("userEmail", email);
-    localStorage.setItem("email", email);
-
-    setTimeout(() => {
-      window.location.href = "home.html";
-    }, 1500);
-
+    showMessage("Registracija uspešna! Preusmerjam ...", "success");
+    setTimeout(() => (window.location.href = "home.html"), 700);
   } catch (err) {
     console.error("Napaka pri registraciji:", err);
     showMessage("Prišlo je do napake. Poskusi znova.", "error");
   }
 });
-
-// 🔹 Funkcija za prikaz pozdrava
-function showWelcome(username) {
-  signupForm.style.display = "none"; // skrije formo
-  const loginLink = document.getElementById("loginLinkText");
-  if (loginLink) loginLink.style.display = "none"; // skrije link na prijavo
-  welcomeTitle.textContent = `Pozdravljen, ${username}!`;
-
-  const logoutBtn = document.createElement("button");
-  logoutBtn.textContent = "Odjava";
-  logoutBtn.style.marginTop = "20px";
-  logoutBtn.addEventListener("click", () => {
-    localStorage.clear();
-    location.reload();
-  });
-
-  document.body.appendChild(logoutBtn);
-}

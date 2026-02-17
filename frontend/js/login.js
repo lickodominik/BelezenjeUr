@@ -3,62 +3,46 @@ const messageBox = document.createElement("div");
 messageBox.id = "messageBox";
 loginForm.appendChild(messageBox);
 
-const savedUser = localStorage.getItem("username");
-if (savedUser) {
-  window.location.href = "home.html";
-}
-
-// 🔹 Prikaz sporočila (uspeh / napaka)
 function showMessage(text, type = "error") {
   messageBox.textContent = text;
-  messageBox.className = `message ${type}`; // npr. message success ali message error
+  messageBox.className = `message ${type}`;
   messageBox.style.opacity = "1";
-
-  // Po 3 sekundah se sporočilo počasi skrije
-  setTimeout(() => {
-    messageBox.style.opacity = "0";
-  }, 3000);
+  setTimeout(() => (messageBox.style.opacity = "0"), 3000);
 }
 
-// 🔹 Ob oddaji prijavnega obrazca
+(async function () {
+  try {
+    const res = await fetch("/api/me", { credentials: "include" });
+    if (res.ok) window.location.href = "home.html";
+  } catch {}
+})();
+
 loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const email = document.getElementById("email").value.trim();
   const password = document.getElementById("password").value.trim();
-
-  if (!email || !password) {
-    showMessage("Vnesi e-naslov in geslo!", "error");
-    return;
-  }
+  if (!email || !password) return showMessage("Vnesi e-naslov in geslo!", "error");
 
   try {
     const response = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ email, password }),
     });
 
-    const result = await response.json();
+    const text = await response.text();
+    let result = {};
+    try { result = text ? JSON.parse(text) : {}; } catch { result = { message: text }; }
 
-    if (!response.ok) {
-      showMessage(result.message || "Napačen e-naslov ali geslo.", "error");
-      return;
-    }
+    if (!response.ok) return showMessage(result.message || "Napačen e-naslov ali geslo.", "error");
 
+    if (result.username) localStorage.setItem("username", result.username);
     showMessage("Prijava uspešna! Preusmerjam ...", "success");
-
-    localStorage.setItem("username", result.username);
-    localStorage.setItem("userEmail", email);
-    localStorage.setItem("email", email);
-
-    // Po 1 sekundi preusmeri na home.html
-    setTimeout(() => {
-      window.location.href = "home.html";
-    }, 1000);
-
+    setTimeout(() => (window.location.href = "home.html"), 600);
   } catch (err) {
-    console.error("Napaka pri prijavi:", err);
+    console.error(err);
     showMessage("Napaka pri povezavi s strežnikom.", "error");
   }
 });

@@ -1,25 +1,10 @@
-const username = localStorage.getItem("username");
-const email = localStorage.getItem("userEmail");
-
-// 🔹 Če uporabnik ni prijavljen, ga preusmerimo
-if (!username || !email) {
-  window.location.href = "login.html";
-} else {
-  document.getElementById("welcomeMsg").textContent = `Pozdravljen, ${username}!`;
-}
-
-// 🔹 Odjava
-document.getElementById("logoutBtn").addEventListener("click", () => {
-  showConfirm("Si prepričan, da se želiš odjaviti?", () => {
-    localStorage.clear();
-    window.location.href = "login.html";
-  });
-});
-
+const welcomeMsg = document.getElementById("welcomeMsg");
+const logoutBtn = document.getElementById("logoutBtn");
 const jobForm = document.getElementById("addJobForm");
 const jobList = document.getElementById("jobList");
+const downloadBtn = document.getElementById("downloadExcel");
 
-// 🔹 Dodamo polje za sporočila
+// 🔹 Message box
 const messageBox = document.createElement("div");
 messageBox.id = "messageBox";
 messageBox.style.marginTop = "10px";
@@ -29,57 +14,100 @@ messageBox.style.display = "none";
 messageBox.style.fontWeight = "bold";
 jobForm.parentElement.insertBefore(messageBox, jobForm);
 
-// 🔹 Funkcija za prikaz sporočil
 function showMessage(text, type = "info") {
   messageBox.textContent = text;
   messageBox.style.display = "block";
   messageBox.style.backgroundColor =
-    type === "success" ? "#d4edda" :
-    type === "error" ? "#f8d7da" :
-    "#cce5ff";
+    type === "success" ? "#d4edda" : type === "error" ? "#f8d7da" : "#cce5ff";
   messageBox.style.color =
-    type === "success" ? "#155724" :
-    type === "error" ? "#721c24" :
-    "#004085";
-  setTimeout(() => { messageBox.style.display = "none"; }, 3000);
+    type === "success" ? "#155724" : type === "error" ? "#721c24" : "#004085";
+  setTimeout(() => {
+    messageBox.style.display = "none";
+  }, 3000);
 }
 
-// 🔹 Funkcija za potrditvena okna (namesto confirm)
+// ✅ Varno confirm okno (brez innerHTML → manj XSS tveganja)
 function showConfirm(message, onConfirm) {
-  const confirmBox = document.createElement("div");
-  confirmBox.style.position = "fixed";
-  confirmBox.style.top = "50%";
-  confirmBox.style.left = "50%";
-  confirmBox.style.transform = "translate(-50%, -50%)";
-  confirmBox.style.background = "#fff";
-  confirmBox.style.border = "1px solid #ccc";
-  confirmBox.style.padding = "20px";
-  confirmBox.style.borderRadius = "10px";
-  confirmBox.style.boxShadow = "0 4px 8px rgba(0,0,0,0.2)";
-  confirmBox.style.zIndex = "1000";
-  confirmBox.innerHTML = `
-    <p style="margin-bottom: 10px;">${message}</p>
-    <button id="confirmYes">Da</button>
-    <button id="confirmNo" style="margin-left: 10px;">Ne</button>
-  `;
-  document.body.appendChild(confirmBox);
+  const overlay = document.createElement("div");
+  overlay.style.position = "fixed";
+  overlay.style.top = "0";
+  overlay.style.left = "0";
+  overlay.style.right = "0";
+  overlay.style.bottom = "0";
+  overlay.style.background = "rgba(0,0,0,0.35)";
+  overlay.style.zIndex = "999";
 
-  document.getElementById("confirmYes").addEventListener("click", () => {
-    confirmBox.remove();
+  const box = document.createElement("div");
+  box.style.position = "fixed";
+  box.style.top = "50%";
+  box.style.left = "50%";
+  box.style.transform = "translate(-50%, -50%)";
+  box.style.background = "#fff";
+  box.style.border = "1px solid #ccc";
+  box.style.padding = "18px";
+  box.style.borderRadius = "10px";
+  box.style.boxShadow = "0 4px 10px rgba(0,0,0,0.2)";
+  box.style.zIndex = "1000";
+  box.style.minWidth = "280px";
+
+  const p = document.createElement("p");
+  p.style.marginBottom = "12px";
+  p.textContent = message;
+
+  const yes = document.createElement("button");
+  yes.textContent = "Da";
+
+  const no = document.createElement("button");
+  no.textContent = "Ne";
+  no.style.marginLeft = "10px";
+
+  box.appendChild(p);
+  box.appendChild(yes);
+  box.appendChild(no);
+
+  function cleanup() {
+    box.remove();
+    overlay.remove();
+  }
+
+  yes.addEventListener("click", () => {
+    cleanup();
     onConfirm();
   });
-  document.getElementById("confirmNo").addEventListener("click", () => {
-    confirmBox.remove();
-  });
+
+  no.addEventListener("click", cleanup);
+
+  document.body.appendChild(overlay);
+  document.body.appendChild(box);
+}
+
+async function fetchJSON(url, options = {}) {
+  const res = await fetch(url, { credentials: "include", ...options });
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
 }
 
 let jobs = [];
 
-// 🔹 1. Naloži vse službe uporabnika
+// ✅ 0) Preveri sejo in naloži uporabnika
+async function loadMeOrRedirect() {
+  const { res, data } = await fetchJSON("/api/me");
+  if (!res.ok) {
+    window.location.href = "login.html";
+    return null;
+  }
+  return data; // { email, username }
+}
+
+// ✅ 1) Naloži službe
 async function loadJobs() {
   try {
-    const res = await fetch(`/api/jobs/${email}`);
-    const data = await res.json();
+    const { res, data } = await fetchJSON("/api/jobs");
+    if (!res.ok) {
+      if (res.status === 401) window.location.href = "login.html";
+      else showMessage(data.message || "Napaka pri nalaganju služb.", "error");
+      return;
+    }
     jobs = data.jobs || [];
     renderJobs();
   } catch {
@@ -87,31 +115,32 @@ async function loadJobs() {
   }
 }
 
-// 🔹 2. Prikaži službe
+// ✅ 2) Prikaži službe
 function renderJobs() {
   jobList.innerHTML = "";
-  if (jobs.length === 0) {
-    jobList.innerHTML = "<p>Trenutno še nimaš dodanih služb.</p>";
+
+  if (!jobs.length) {
+    const p = document.createElement("p");
+    p.textContent = "Trenutno še nimaš dodanih služb.";
+    jobList.appendChild(p);
     return;
   }
 
-  jobs.forEach((job) => {
+  for (const job of jobs) {
     const div = document.createElement("div");
     div.className = "job-item";
 
-    const active = job.sessions?.some((s) => !s.end);
-
     const title = document.createElement("h3");
-    title.textContent = job.name + " " + (active ? "🟢 aktivno" : "⚪ neaktivno");
+    title.textContent = `${job.name} ${job.active ? "🟢 aktivno" : "⚪ neaktivno"}`;
 
     const startBtn = document.createElement("button");
     startBtn.textContent = "Začni";
-    startBtn.disabled = active;
+    startBtn.disabled = !!job.active;
 
     const stopBtn = document.createElement("button");
     stopBtn.textContent = "Ustavi";
     stopBtn.style.marginLeft = "10px";
-    stopBtn.disabled = !active;
+    stopBtn.disabled = !job.active;
 
     const deleteBtn = document.createElement("button");
     deleteBtn.textContent = "🗑 Odstrani";
@@ -128,44 +157,48 @@ function renderJobs() {
     div.appendChild(stopBtn);
     div.appendChild(deleteBtn);
     jobList.appendChild(div);
-  });
+  }
 }
 
-// 🔹 3. Pošlji "Začni" ali "Ustavi" na strežnik
+// ✅ 3) Začni / ustavi
 async function handleTime(jobName, action) {
   try {
-    const res = await fetch("/api/time", {
+    const { res, data } = await fetchJSON("/api/time", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, jobName, action }),
+      body: JSON.stringify({ jobName, action }),
     });
 
-    const data = await res.json();
-    if (!res.ok) return showMessage(data.message || "Napaka pri posodobitvi.", "error");
+    if (!res.ok) {
+      if (res.status === 401) return (window.location.href = "login.html");
+      return showMessage(data.message || "Napaka pri posodobitvi.", "error");
+    }
 
-    showMessage(data.message, "success");
-    jobs = data.jobs;
-    renderJobs();
+    showMessage(data.message || "OK", "success");
+    // po start/stop backend trenutno vrača samo message → osvežimo seznam
+    await loadJobs();
   } catch {
     showMessage("Napaka pri komunikaciji s strežnikom.", "error");
   }
 }
 
-// 🔹 4. Odstrani službo
+// ✅ 4) Odstrani službo
 async function handleDelete(jobName) {
   showConfirm(`Ali res želiš odstraniti službo "${jobName}"?`, async () => {
     try {
-      const res = await fetch("/api/jobs", {
+      const { res, data } = await fetchJSON("/api/jobs", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name: jobName }),
+        body: JSON.stringify({ name: jobName }),
       });
 
-      const data = await res.json();
-      if (!res.ok) return showMessage(data.message || "Napaka pri brisanju.", "error");
+      if (!res.ok) {
+        if (res.status === 401) return (window.location.href = "login.html");
+        return showMessage(data.message || "Napaka pri brisanju.", "error");
+      }
 
-      showMessage("Služba odstranjena.", "success");
-      jobs = data.jobs;
+      showMessage(data.message || "Služba odstranjena.", "success");
+      jobs = data.jobs || [];
       renderJobs();
     } catch {
       showMessage("Napaka pri komunikaciji s strežnikom.", "error");
@@ -173,7 +206,7 @@ async function handleDelete(jobName) {
   });
 }
 
-// 🔹 5. Dodaj novo službo
+// ✅ 5) Dodaj službo
 jobForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -181,18 +214,19 @@ jobForm.addEventListener("submit", async (e) => {
   if (!name) return showMessage("Vnesi ime službe!", "error");
 
   try {
-    const response = await fetch("/api/jobs", {
+    const { res, data } = await fetchJSON("/api/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, name }),
+      body: JSON.stringify({ name }),
     });
 
-    const result = await response.json();
+    if (!res.ok) {
+      if (res.status === 401) return (window.location.href = "login.html");
+      return showMessage(data.message || "Napaka pri dodajanju.", "error");
+    }
 
-    if (!response.ok) return showMessage(result.message || "Napaka pri dodajanju.", "error");
-
-    showMessage("Služba dodana!", "success");
-    jobs = result.jobs;
+    showMessage(data.message || "Služba dodana!", "success");
+    jobs = data.jobs || [];
     renderJobs();
     document.getElementById("jobName").value = "";
   } catch {
@@ -200,14 +234,34 @@ jobForm.addEventListener("submit", async (e) => {
   }
 });
 
-// 📥 Prenos Excel datoteke
-document.getElementById("downloadExcel").addEventListener("click", () => {
-  const email = localStorage.getItem("email");
-  if (!email) return showMessage("Napaka: uporabnik ni prijavljen!", "error");
-
-  const url = `/api/download/${encodeURIComponent(email)}`;
-  window.location.href = url;
+// ✅ 6) Download excel (cookie auth; brez email parametra)
+downloadBtn.addEventListener("click", () => {
+  window.location.href = "/api/download";
 });
 
-// 🔹 6. Naloži ob začetku
-loadJobs();
+// ✅ 7) Odjava (backend cookie clear)
+logoutBtn.addEventListener("click", () => {
+  showConfirm("Si prepričan, da se želiš odjaviti?", async () => {
+    try {
+      await fetch("/api/logout", { method: "POST", credentials: "include" });
+    } catch {
+      // ignore
+    } finally {
+      // samo UI podatki
+      localStorage.removeItem("username");
+      window.location.href = "login.html";
+    }
+  });
+});
+
+// ✅ Init
+(async function init() {
+  const me = await loadMeOrRedirect();
+  if (!me) return;
+
+  const storedUsername = localStorage.getItem("username");
+  const displayName = storedUsername || me.username || "Uporabnik";
+  welcomeMsg.textContent = `Pozdravljen, ${displayName}!`;
+
+  await loadJobs();
+})();
