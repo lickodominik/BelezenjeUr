@@ -362,7 +362,14 @@ app.get("/api/download", requireAuth, async (req, res) => {
     const workbook = new ExcelJS.Workbook();
     workbook.creator = "Beleženje ur";
 
-    // Sheet 1: Delo
+    const minutesToHHMM = (min) => {
+      const m = Math.max(0, Number(min || 0));
+      const hh = Math.floor(m / 60);
+      const mm = m % 60;
+      return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    };
+
+    // ---------- Sheet: Delo ----------
     const ws = workbook.addWorksheet("Delo", {
       views: [{ state: "frozen", ySplit: 1 }],
     });
@@ -378,47 +385,141 @@ app.get("/api/download", requireAuth, async (req, res) => {
     ];
 
     ws.getRow(1).font = { bold: true };
+    ws.getRow(1).alignment = { vertical: "middle" };
 
-    // Sheet 2: Povzetek
-    const sum = workbook.addWorksheet("Povzetek", {
-      views: [{ state: "frozen", ySplit: 1 }],
-    });
-    sum.columns = [
-      { header: "Mesec", key: "month", width: 18 },
-      { header: "Skupaj (HH:MM)", key: "hhmm", width: 16 },
-      { header: "Skupaj (min)", key: "min", width: 14 },
-    ];
-    sum.getRow(1).font = { bold: true };
+    // ---------- Agregacije ----------
+    // monthKey: "YYYY-MM" (za sortiranje), monthLabel: "februar 2026"
+    const monthLabel = (d) => d.toLocaleString("sl-SI", { month: "long", year: "numeric" });
+    const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
-    const monthTotals = new Map();
+    const jobsSet = new Set();
+    const monthTotals = new Map();          // monthKey -> minutes
+    const jobTotals = new Map();            // jobName -> minutes
+    const monthJobTotals = new Map();       // monthKey -> Map(jobName -> minutes)
+    const monthKeyToLabel = new Map();      // monthKey -> label
+
+    let grandTotalMin = 0;
 
     for (const r of q.rows) {
       const start = new Date(r.start_time);
       const end = new Date(r.end_time);
-      const month = start.toLocaleString("sl-SI", { month: "long", year: "numeric" });
+      const job = r.job_name;
+      const mins = Number(r.duration_minutes || 0);
 
+      const mKey = monthKey(start);
+      const mLabel = monthLabel(start);
+      monthKeyToLabel.set(mKey, mLabel);
+
+      // Delo sheet row
       ws.addRow({
         date: start.toLocaleDateString("sl-SI"),
-        job: r.job_name,
+        job,
         start: start.toLocaleTimeString("sl-SI", { hour: "2-digit", minute: "2-digit" }),
         end: end.toLocaleTimeString("sl-SI", { hour: "2-digit", minute: "2-digit" }),
-        hhmm: minutesToHHMM(r.duration_minutes),
-        min: r.duration_minutes,
-        month,
+        hhmm: minutesToHHMM(mins),
+        min: mins,
+        month: mLabel,
       });
 
-      monthTotals.set(month, (monthTotals.get(month) || 0) + Number(r.duration_minutes || 0));
+      jobsSet.add(job);
+      grandTotalMin += mins;
+
+      monthTotals.set(mKey, (monthTotals.get(mKey) || 0) + mins);
+      jobTotals.set(job, (jobTotals.get(job) || 0) + mins);
+
+      if (!monthJobTotals.has(mKey)) monthJobTotals.set(mKey, new Map());
+      const inner = monthJobTotals.get(mKey);
+      inner.set(job, (inner.get(job) || 0) + mins);
     }
 
-    // povzetek po mesecih
-    for (const [month, totalMin] of monthTotals.entries()) {
-      sum.addRow({
-        month,
-        hhmm: minutesToHHMM(totalMin),
-        min: totalMin,
-      });
+    // Naredi tabelo lepšo (filtri)
+    ws.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: ws.columns.length },
+    };
+
+    // ---------- Sheet: Povzetek ----------
+    const sum = workbook.addWorksheet("Povzetek", {
+      views: [{ state: "frozen", ySplit: 1 }],
+    });
+
+    // Stolpci: Mesec + vse službe + Skupaj
+    const jobs = Array.from(jobsSet).sort((a, b) => a.localeCompare(b, "sl"));
+    const monthKeys = Array.from(monthTotals.keys()).sort(); // "YYYY-MM" sort
+
+    const columns = [
+      { header: "Mesec", key: "month", width: 18 },
+      ...jobs.map((j) => ({ header: j, key: `job:${j}`, width: 14 })),
+      { header: "Skupaj (HH:MM)", key: "total_hhmm", width: 16 },
+      { header: "Skupaj (min)", key: "total_min", width: 14 },
+    ];
+
+    sum.columns = columns;
+    sum.getRow(1).font = { bold: true };
+
+    // Vrstice: mesečni pivot
+    for (const mKey of monthKeys) {
+      const rowObj = {
+        month: monthKeyToLabel.get(mKey) || mKey,
+      };
+
+      let rowTotal = 0;
+      const inner = monthJobTotals.get(mKey) || new Map();
+
+      for (const j of jobs) {
+        const v = inner.get(j) || 0;
+        rowObj[`job:${j}`] = minutesToHHMM(v);
+        rowTotal += v;
+      }
+
+      rowObj.total_hhmm = minutesToHHMM(rowTotal);
+      rowObj.total_min = rowTotal;
+
+      sum.addRow(rowObj);
     }
 
+    // Zadnja vrstica: skupaj čez vse
+    const totalRow = {
+      month: "SKUPAJ",
+    };
+    for (const j of jobs) {
+      const v = jobTotals.get(j) || 0;
+      totalRow[`job:${j}`] = minutesToHHMM(v);
+    }
+    totalRow.total_hhmm = minutesToHHMM(grandTotalMin);
+    totalRow.total_min = grandTotalMin;
+
+    const last = sum.addRow(totalRow);
+    last.font = { bold: true };
+
+    // Lepše poravnave
+    for (let c = 2; c <= sum.columns.length; c++) {
+      sum.getColumn(c).alignment = { horizontal: "center" };
+    }
+
+    // ---------- Sheet: Službe (enostaven seznam) ----------
+    const byJob = workbook.addWorksheet("Službe", {
+      views: [{ state: "frozen", ySplit: 1 }],
+    });
+    byJob.columns = [
+      { header: "Služba", key: "job", width: 26 },
+      { header: "Skupaj (HH:MM)", key: "hhmm", width: 16 },
+      { header: "Skupaj (min)", key: "min", width: 14 },
+    ];
+    byJob.getRow(1).font = { bold: true };
+
+    for (const j of jobs) {
+      const v = jobTotals.get(j) || 0;
+      byJob.addRow({ job: j, hhmm: minutesToHHMM(v), min: v });
+    }
+    const byJobTotal = byJob.addRow({
+      job: "SKUPAJ",
+      hhmm: minutesToHHMM(grandTotalMin),
+      min: grandTotalMin,
+    });
+    byJobTotal.font = { bold: true };
+
+    // ---------- response ----------
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -434,6 +535,7 @@ app.get("/api/download", requireAuth, async (req, res) => {
     client.release();
   }
 });
+
 
 // --- Start ---
 app.listen(PORT, "0.0.0.0", () => {
